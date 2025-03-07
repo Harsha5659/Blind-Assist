@@ -48,43 +48,42 @@ async function detectObjects() {
 
     if (predictions.length === 0) {
         lastSpokenObject = "";
-        return;
-    }
+    } else {
+        let detectedObject = predictions[0].class;
+        let [x, y, width, height] = predictions[0].bbox;
+        let distance = estimateDistance(width);
 
-    let detectedObject = predictions[0].class;
-    let [x, y, width, height] = predictions[0].bbox;
-    let distance = estimateDistance(width);
+        // Prevent XSS: Use textContent instead of innerHTML
+        ctx.strokeStyle = 'red';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x, y, width, height);
+        ctx.fillStyle = 'red';
+        ctx.fillText(`${detectedObject} (${distance}m)`, x, y - 5);
 
-    // Prevent XSS: Use textContent instead of innerHTML
-    ctx.strokeStyle = 'red';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(x, y, width, height);
-    ctx.fillStyle = 'red';
-    ctx.fillText(`${detectedObject} (${distance}m)`, x, y - 5);
+        let position = x + width / 2;
+        let screenCenter = canvas.width / 2;
+        let direction = position < screenCenter ? "on your left" : "on your right";
 
-    let position = x + width / 2;
-    let screenCenter = canvas.width / 2;
-    let direction = position < screenCenter ? "on your left" : "on your right";
+        if (detectedObject !== lastSpokenObject) {
+            window.speechSynthesis.cancel();
+            speak(`${detectedObject} is ${direction} and about ${distance} meters away`);
+            lastSpokenObject = detectedObject;
+        }
 
-    if (detectedObject !== lastSpokenObject) {
-        window.speechSynthesis.cancel();
-        speak(`${detectedObject} is ${direction} and about ${distance} meters away`);
-        lastSpokenObject = detectedObject;
-    }
+        // Vibration Alert for Close Objects (<1m)
+        if (distance < 1) {
+            if (navigator.vibrate) {
+                navigator.vibrate([300, 100, 300]);
+            }
+        }
 
-    // Vibration Alert for Close Objects (<1m)
-    if (distance < 1) {
-        if (navigator.vibrate) {
-            navigator.vibrate([300, 100, 300]);
+        // Sound Alert for Very Close Objects (<0.5m)
+        if (distance < 0.5) {
+            alertSound.play();
         }
     }
-
-    // Sound Alert for Very Close Objects (<0.5m)
-    if (distance < 0.5) {
-        alertSound.play();
-    }
-
-    requestAnimationFrame(detectObjects);
+    
+    requestAnimationFrame(detectObjects); // Ensure continuous detection
 }
 
 // Secure Speech Recognition: Requires user button click to activate
@@ -98,8 +97,10 @@ function startVoiceRecognition() {
         isListening = !isListening;
         if (isListening) {
             recognition.start();
+            speak("Voice recognition started.");
         } else {
             recognition.stop();
+            speak("Voice recognition stopped.");
         }
     });
 
